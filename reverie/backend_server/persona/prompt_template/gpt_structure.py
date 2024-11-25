@@ -25,7 +25,7 @@ def ChatGPT_single_request(prompt):
     temp_sleep()
 
     completion = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
+        model="llama-3.2-1b-instruct", messages=[{"role": "user", "content": prompt}]
     )
     return completion["choices"][0]["message"]["content"]
 
@@ -75,7 +75,8 @@ def ChatGPT_request(prompt):
     # temp_sleep()
     try:
         completion = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo", messages=[{"role": "user", "content": prompt}]
+            model="llama-3.2-1b-instruct",
+            messages=[{"role": "user", "content": prompt}],
         )
         return completion["choices"][0]["message"]["content"]
 
@@ -290,7 +291,7 @@ def safe_generate_response(
     return fail_safe_response
 
 
-def get_embedding(text, model="text-embedding-ada-002"):
+def get_embedding(text, model="text-embedding-nomic-embed-text-v1.5"):
     text = text.replace("\n", " ")
     if not text:
         text = "this is blank"
