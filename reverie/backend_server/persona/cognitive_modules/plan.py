@@ -264,9 +264,31 @@ def generate_action_event_triple(act_desp, persona):
   return run_gpt_prompt_event_triple(act_desp, persona)[0]
 
 
-def generate_act_obj_desc(act_game_object, act_desp, persona): 
-  if debug: print ("GNS FUNCTION: <generate_act_obj_desc>")
-  return run_gpt_prompt_act_obj_desc(act_game_object, act_desp, persona)[0]
+def generate_act_obj_desc(act_game_object, act_desp, persona, default_value="Default description"):
+    if debug: 
+        print("GNS FUNCTION: <generate_act_obj_desc>")
+    
+    try:
+        result = run_gpt_prompt_act_obj_desc(act_game_object, act_desp, persona)
+
+        if result is None:
+            print("Warning: run_gpt_prompt_act_obj_desc returned None. Returning default value.")
+            return default_value
+
+        if not isinstance(result, (list, tuple)):
+            print(f"Warning: Expected a list or tuple, but got {type(result).__name__}. Returning default value.")
+            return default_value
+
+        if len(result) == 0:
+            print("Warning: run_gpt_prompt_act_obj_desc returned an empty list or tuple. Returning default value.")
+            return default_value
+
+        print(f"run_gpt_prompt_act_obj_desc result: {result}")
+        return result[0]
+    
+    except Exception as e:
+        print(f"Error in generate_act_obj_desc: {e}. Returning default value.")
+        return default_value
 
 
 def generate_act_obj_event_triple(act_game_object, act_obj_desc, persona): 
@@ -558,7 +580,8 @@ def _determine_action(persona, maze):
   # any given point. 
   curr_index = persona.scratch.get_f_daily_schedule_index()
   curr_index_60 = persona.scratch.get_f_daily_schedule_index(advance=60)
-
+  
+  
   # * Decompose * 
   # During the first hour of the day, we need to decompose two hours 
   # sequence. We do that here. 

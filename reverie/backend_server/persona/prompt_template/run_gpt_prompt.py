@@ -394,70 +394,82 @@ def run_gpt_prompt_task_decomp(persona, task, duration, test_input=None, verbose
         print(gpt_response)
         print("-==- -==- -==- ")
 
-        # TODO SOMETHING HERE sometimes fails... See screenshot
+        # Preprocess the GPT response
         temp = [i.strip() for i in gpt_response.split("\n")]
         _cr = []
         cr = []
+
         for count, i in enumerate(temp):
-            if count != 0:
-                _cr += [" ".join([j.strip() for j in i.split(" ")][3:])]
+            if count == 0:
+                _cr.append(i)
             else:
-                _cr += [i]
+                # Skip the first three words and rejoin the rest
+                _cr.append(" ".join(i.split(" ")[3:]))
+
         for count, i in enumerate(_cr):
             k = [j.strip() for j in i.split("(duration in minutes:")]
             task = k[0]
-            print(
-                "========================================================================="
-            )
+
+            print("=" * 73)
             print(k)
-            print(
-                "========================================================================="
-            )
+            print("=" * 73)
             print(task)
-            if task != "" and task[-1] == ".":
+
+            # Clean up task names
+            if task and task.endswith("."):
                 task = task[:-1]
-            duration = int(k[1].split(",")[0].strip())
-            cr += [[task, duration]]
 
-        total_expected_min = int(
-            prompt.split("(total duration in minutes")[-1].split("):")[0].strip()
-        )
+            # Skip invalid or incomplete data
+            if len(k) <= 1 or len(k[1].split(",")) == 0:
+                continue
 
-        # TODO -- now, you need to make sure that this is the same as the sum of
-        #         the current action sequence.
-        curr_min_slot = [
-            ["dummy", -1],
-        ]  # (task_name, task_index)
-        for count, i in enumerate(cr):
-            i_task = i[0]
-            i_duration = i[1]
+            try:
+                # Extract and validate duration
+                raw_duration = k[1].split(",")[0].strip()  # Remove whitespace
+                raw_duration = raw_duration.rstrip(")")  # Remove trailing parenthesis if present
+                duration = int(raw_duration)
+                cr.append([task, duration])
+            except (ValueError, IndexError) as e:
+                print(f"Error parsing duration from: {k[1]}. Error: {e}")
+                continue
 
-            i_duration -= i_duration % 5
+        try:
+            # Extract total expected minutes from the prompt
+            total_expected_min = int(
+                prompt.split("(total duration in minutes")[-1].split("):")[0].strip()
+            )
+        except (IndexError, ValueError):
+            raise ValueError("Failed to extract total duration from prompt.")
+
+        # Ensure the sum of durations matches the total expected minutes
+        curr_min_slot = [("dummy", -1)]  # (task_name, task_index)
+        for count, (i_task, i_duration) in enumerate(cr):
+            i_duration = i_duration - (i_duration % 5)  # Round down to nearest 5
             if i_duration > 0:
-                for j in range(i_duration):
-                    curr_min_slot += [(i_task, count)]
-        curr_min_slot = curr_min_slot[1:]
+                curr_min_slot.extend([(i_task, count)] * i_duration)
 
+        curr_min_slot = curr_min_slot[1:]  # Remove the initial dummy task
+
+        # Adjust tasks to match the total expected minutes
         if len(curr_min_slot) > total_expected_min:
-            last_task = curr_min_slot[60]
+            last_task = curr_min_slot[total_expected_min - 1]
+            curr_min_slot = curr_min_slot[:total_expected_min]
             for i in range(1, 6):
-                curr_min_slot[-1 * i] = last_task
+                curr_min_slot[-i] = last_task
         elif len(curr_min_slot) < total_expected_min:
             last_task = curr_min_slot[-1]
-            for i in range(total_expected_min - len(curr_min_slot)):
-                curr_min_slot += [last_task]
+            curr_min_slot.extend([last_task] * (total_expected_min - len(curr_min_slot)))
 
-        cr_ret = [
-            ["dummy", -1],
-        ]
+        # Consolidate tasks and durations
+        cr_ret = [("dummy", -1)]
         for task, task_index in curr_min_slot:
             if task != cr_ret[-1][0]:
-                cr_ret += [[task, 1]]
+                cr_ret.append([task, 1])
             else:
                 cr_ret[-1][1] += 1
-        cr = cr_ret[1:]
 
-        return cr
+        return cr_ret[1:]  # Remove the initial dummy task
+
 
     def __func_validate(gpt_response, prompt=""):
         # TODO -- this sometimes generates error
